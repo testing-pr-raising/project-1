@@ -48,10 +48,10 @@ jobs:
                 body:([
                   # header band: colour comes from the container style only; text keeps the theme default (white/black)
                   {type:"Container", style:"good", bleed:true, items:[
-                    {type:"TextBlock", text:("🔀 NEW PULL REQUEST  #" + $num), size:"Small", weight:"Bolder", wrap:true}
+                    {type:"TextBlock", text:("🔀 NEW PULL REQUEST  #" + $num), size:"Medium", weight:"Bolder", wrap:true}
                   ]},
                   {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Medium"},
-                  {type:"TextBlock", text:$title, size:"Large", weight:"Bolder", wrap:true, spacing:"Small"},
+                  {type:"TextBlock", text:$title, size:"ExtraLarge", weight:"Bolder", wrap:true, spacing:"Small"},
                   (row("👤 Raised by"; $who; true) + {spacing:"Medium", separator:true})
                 ]
                 + (if ($tags|length) == 0 then [] else
