@@ -32,11 +32,12 @@ jobs:
           payload=$(jq -n \
             --arg project "$PROJECT" --arg title "$PR_TITLE" --arg author "$PR_AUTHOR" --arg url "$PR_URL" \
             --argjson map "$USER_MAP" --argjson rev "$REVIEWERS" --argjson def "$DEFAULT_MENTIONS" '
-            ($map[$author].name // $author) as $who |
-            # tag only logins found in the map (need a Teams email to mention)
-            ([$rev[], $def[]] | unique | map(select($map[.] != null)) | map($map[.])) as $tags |
+            # author mentioned too when in the map; reviewers = requested + defaults, mapped only
+            ($map[$author] // null) as $me |
+            (if $me then "<at>\($me.name)</at>" else $author end) as $who |
+            ([$rev[], $def[]] | unique | map(select(. != $author and $map[.] != null)) | map($map[.])) as $tags |
             def row($label; $value; $bold): {type:"ColumnSet", spacing:"Small", columns:[
-              {type:"Column", width:"90px", items:[{type:"TextBlock", text:$label, isSubtle:true, wrap:true}]},
+              {type:"Column", width:"90px", items:[{type:"TextBlock", text:$label, color:"Good", wrap:true}]},
               {type:"Column", width:"stretch", items:[{type:"TextBlock", text:$value, wrap:true} + (if $bold then {weight:"Bolder"} else {} end)]}]};
             {type:"message", attachments:[{
               contentType:"application/vnd.microsoft.card.adaptive", contentUrl:null,
@@ -44,14 +45,17 @@ jobs:
                 "$schema":"http://adaptivecards.io/schemas/adaptive-card.json",
                 type:"AdaptiveCard", version:"1.4",
                 body:([
-                  {type:"TextBlock", text:"🔀 NEW PULL REQUEST", size:"Small", weight:"Bolder", color:"Good", wrap:true},
-                  {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Medium"},
-                  {type:"TextBlock", text:$title, size:"Large", weight:"Bolder", wrap:true, spacing:"Small"},
+                  {type:"Container", style:"good", bleed:true, items:[
+                    {type:"TextBlock", text:"🔀 NEW PULL REQUEST", size:"Small", weight:"Bolder", color:"Good", wrap:true},
+                    {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Small"}
+                  ]},
+                  {type:"TextBlock", text:$title, size:"Large", weight:"Bolder", wrap:true, spacing:"Medium"},
                   (row("👤 Raised by"; $who; true) + {spacing:"Medium", separator:true})
                 ]
                 + (if ($tags|length) == 0 then [] else
                     [row("🔍 Reviewer"; ($tags | map("<at>\(.name)</at>") | join(", ")); false)] end)),
                 actions:[{type:"Action.OpenUrl", title:"Open PR", url:$url, style:"positive"}],
-                msteams:{width:"Full", entities:($tags | map({type:"mention", text:"<at>\(.name)</at>", mentioned:{id:.email, name:.name}}))}
+                msteams:{width:"Full", entities:(([$me] | map(select(. != null))) + $tags | unique_by(.email)
+                  | map({type:"mention", text:"<at>\(.name)</at>", mentioned:{id:.email, name:.name}}))}
               }}]}')
           curl -fsS --retry 3 -X POST -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK"
