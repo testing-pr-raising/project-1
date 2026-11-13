@@ -25,19 +25,20 @@ jobs:
           # Passed via env, never inlined in the script: PR titles are untrusted input.
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUM: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           REVIEWERS: ${{ toJSON(github.event.pull_request.requested_reviewers.*.login) }}
           USER_MAP: ${{ vars.TEAMS_USER_MAP || '{}' }}
         run: |
           payload=$(jq -n \
-            --arg project "$PROJECT" --arg title "$PR_TITLE" --arg author "$PR_AUTHOR" --arg url "$PR_URL" \
+            --arg project "$PROJECT" --arg title "$PR_TITLE" --arg author "$PR_AUTHOR" --arg url "$PR_URL" --arg num "$PR_NUM" \
             --argjson map "$USER_MAP" --argjson rev "$REVIEWERS" --argjson def "$DEFAULT_MENTIONS" '
             # author mentioned too when in the map; reviewers = requested + defaults, mapped only
             ($map[$author] // null) as $me |
             (if $me then "<at>\($me.name)</at>" else $author end) as $who |
             ([$rev[], $def[]] | unique | map(select(. != $author and $map[.] != null)) | map($map[.])) as $tags |
             def row($label; $value; $bold): {type:"ColumnSet", spacing:"Small", columns:[
-              {type:"Column", width:"90px", items:[{type:"TextBlock", text:$label, color:"Good", wrap:true}]},
+              {type:"Column", width:"90px", items:[{type:"TextBlock", text:$label, isSubtle:true, wrap:true}]},
               {type:"Column", width:"stretch", items:[{type:"TextBlock", text:$value, wrap:true} + (if $bold then {weight:"Bolder"} else {} end)]}]};
             {type:"message", attachments:[{
               contentType:"application/vnd.microsoft.card.adaptive", contentUrl:null,
@@ -45,11 +46,12 @@ jobs:
                 "$schema":"http://adaptivecards.io/schemas/adaptive-card.json",
                 type:"AdaptiveCard", version:"1.4",
                 body:([
+                  # header band: colour comes from the container style only; text keeps the theme default (white/black)
                   {type:"Container", style:"good", bleed:true, items:[
-                    {type:"TextBlock", text:"🔀 NEW PULL REQUEST", size:"Small", weight:"Bolder", color:"Good", wrap:true},
-                    {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Small"}
+                    {type:"TextBlock", text:("🔀 NEW PULL REQUEST  #" + $num), size:"Small", weight:"Bolder", wrap:true}
                   ]},
-                  {type:"TextBlock", text:$title, size:"Large", weight:"Bolder", wrap:true, spacing:"Medium"},
+                  {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Medium"},
+                  {type:"TextBlock", text:$title, size:"Large", weight:"Bolder", wrap:true, spacing:"Small"},
                   (row("👤 Raised by"; $who; true) + {spacing:"Medium", separator:true})
                 ]
                 + (if ($tags|length) == 0 then [] else
