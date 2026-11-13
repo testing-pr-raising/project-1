@@ -1,15 +1,57 @@
-# Posts a Teams card when a PR targets develop. Logic lives in testing-pr-raising/teams-pr-automation.
+# Posts a Microsoft Teams card when a PR targets a watched branch. Self-contained: no other repo needed.
+# Secrets: TEAMS_WEBHOOK_<TEAMS_CHAT>. Variable: TEAMS_USER_MAP
+#   {"<github-login>":{"name":"<Teams name>","email":"<Teams email>"}}
 name: PR notify
 
 on:
   pull_request:
     types: [opened, reopened, ready_for_review]
+    branches: [develop]   # edit: branches whose PRs notify Teams
+
+env:
+  # ---- edit per project ----
+  PROJECT: project-1
+  TEAMS_CHAT: URL   # FRONTEND or BACKEND in company orgs; this test org's secret is TEAMS_WEBHOOK_URL
+  DEFAULT_MENTIONS: '["Thamarai-selvan-G-Noukha"]'   # GitHub logins always tagged
 
 jobs:
-  teams:
-    uses: testing-pr-raising/teams-pr-automation/.github/workflows/teams-pr-notify.yml@main
-    with:
-      base_branches: '["develop"]'
-      title_prefix: 'project-1'
-      default_mentions: '["Thamarai-selvan-G-Noukha"]'
-    secrets: inherit
+  notify:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+    steps:
+      - name: Send Teams card
+        env:
+          WEBHOOK: ${{ secrets[format('TEAMS_WEBHOOK_{0}', env.TEAMS_CHAT)] }}
+          # Passed via env, never inlined in the script: PR titles are untrusted input.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          REVIEWERS: ${{ toJSON(github.event.pull_request.requested_reviewers.*.login) }}
+          USER_MAP: ${{ vars.TEAMS_USER_MAP || '{}' }}
+        run: |
+          payload=$(jq -n \
+            --arg project "$PROJECT" --arg title "$PR_TITLE" --arg author "$PR_AUTHOR" --arg url "$PR_URL" \
+            --argjson map "$USER_MAP" --argjson rev "$REVIEWERS" --argjson def "$DEFAULT_MENTIONS" '
+            ($map[$author].name // $author) as $who |
+            # tag only logins found in the map (need a Teams email to mention)
+            ([$rev[], $def[]] | unique | map(select($map[.] != null)) | map($map[.])) as $tags |
+            def row($label; $value; $bold): {type:"ColumnSet", spacing:"Small", columns:[
+              {type:"Column", width:"90px", items:[{type:"TextBlock", text:$label, isSubtle:true, wrap:true}]},
+              {type:"Column", width:"stretch", items:[{type:"TextBlock", text:$value, wrap:true} + (if $bold then {weight:"Bolder"} else {} end)]}]};
+            {type:"message", attachments:[{
+              contentType:"application/vnd.microsoft.card.adaptive", contentUrl:null,
+              content:{
+                "$schema":"http://adaptivecards.io/schemas/adaptive-card.json",
+                type:"AdaptiveCard", version:"1.4",
+                body:([
+                  {type:"TextBlock", text:"🔀 NEW PULL REQUEST", size:"Small", weight:"Bolder", color:"Good", wrap:true},
+                  {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Medium"},
+                  {type:"TextBlock", text:$title, size:"Large", weight:"Bolder", wrap:true, spacing:"Small"},
+                  (row("👤 Raised by"; $who; true) + {spacing:"Medium", separator:true})
+                ]
+                + (if ($tags|length) == 0 then [] else
+                    [row("🔍 Reviewer"; ($tags | map("<at>\(.name)</at>") | join(", ")); false)] end)),
+                actions:[{type:"Action.OpenUrl", title:"Open PR", url:$url, style:"positive"}],
+                msteams:{width:"Full", entities:($tags | map({type:"mention", text:"<at>\(.name)</at>", mentioned:{id:.email, name:.name}}))}
+              }}]}')
+          curl -fsS --retry 3 -X POST -H 'Content-Type: application/json' -d "$payload" "$WEBHOOK"
