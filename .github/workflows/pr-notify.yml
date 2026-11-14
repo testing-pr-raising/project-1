@@ -42,13 +42,6 @@ jobs:
             def row($label; $value; $bold): {type:"ColumnSet", spacing:"Small", columns:[
               {type:"Column", width:"90px", items:[{type:"TextBlock", text:$label, isSubtle:true, wrap:true}]},
               {type:"Column", width:"stretch", items:[{type:"TextBlock", text:$value, wrap:true} + (if $bold then {weight:"Bolder"} else {} end)]}]};
-            # branch chip: colour from container style only, text stays theme default so it is always readable
-            def chip($b): {type:"Column", width:"auto", items:[{type:"Container", roundedCorners:true,
-              style:(if $b == "develop" then "good"
-                     elif ($b == "main" or $b == "master") then "attention"
-                     elif ($b | test("^feat")) then "accent"
-                     else "emphasis" end),
-              items:[{type:"TextBlock", text:$b, size:"Small", weight:"Bolder", wrap:true}]}]};
             {type:"message", attachments:[{
               contentType:"application/vnd.microsoft.card.adaptive", contentUrl:null,
               content:{
@@ -61,11 +54,7 @@ jobs:
                   ]},
                   {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Medium"},
                   {type:"TextBlock", text:$title, size:"ExtraLarge", weight:"Bolder", wrap:true, spacing:"Small"},
-                  {type:"ColumnSet", spacing:"Medium", separator:true, columns:[
-                    {type:"Column", width:"90px", verticalContentAlignment:"Center", items:[{type:"TextBlock", text:"↪️ Branch", isSubtle:true, wrap:true}]},
-                    chip($head),
-                    {type:"Column", width:"auto", verticalContentAlignment:"Center", items:[{type:"TextBlock", text:"→", isSubtle:true}]},
-                    chip($base)]},
+                  (row("↪️ Branch"; ($head + " → " + $base); false) + {spacing:"Medium", separator:true}),
                   row("👤 Raised by"; $who; true)
                 ]
                 + (if ($tags|length) == 0 then [] else
