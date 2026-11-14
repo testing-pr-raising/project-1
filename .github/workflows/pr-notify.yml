@@ -49,10 +49,10 @@ jobs:
             def row($label; $value; $bold): {type:"ColumnSet", spacing:"Small", columns:[
               {type:"Column", width:"90px", items:[{type:"TextBlock", text:$label, isSubtle:true, wrap:true}]},
               {type:"Column", width:"stretch", items:[{type:"TextBlock", text:$value, wrap:true} + (if $bold then {weight:"Bolder"} else {} end)]}]};
-            # header band style + status text colour: Open = orange, Merged = green, Closed = red
-            ({Open:{s:"warning", h:"🔀 NEW PULL REQUEST", c:"Warning"},
-              Merged:{s:"good", h:"✅ MERGED", c:"Good"},
-              Closed:{s:"attention", h:"🔴 CLOSED", c:"Attention"}}[$status]) as $st |
+            # header band carries the status: Open = orange, Merged = green, Closed = red
+            ({Open:{s:"warning", h:"🔀 NEW PR OPENED"},
+              Merged:{s:"good", h:"✅ PR MERGED"},
+              Closed:{s:"attention", h:"🔴 PR CLOSED"}}[$status]) as $st |
             # flow payload: pr_key finds the existing Teams message so the same card is updated
             {pr_key:($repo + "#" + $num), repo:$repo, status:$status,
               card:{
@@ -60,14 +60,16 @@ jobs:
                 type:"AdaptiveCard", version:"1.4",
                 body:([
                   # header band: colour comes from the container style only; text keeps the theme default (white/black)
-                  {type:"Container", style:$st.s, bleed:true, items:[
-                    {type:"TextBlock", text:($st.h + "  #" + $num), size:"Medium", weight:"Bolder", wrap:true}
-                  ]},
-                  {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Medium"},
-                  {type:"TextBlock", text:$title, size:"ExtraLarge", weight:"Bolder", wrap:true, spacing:"Small"},
-                  (row("↪️ Branch"; ($head + " → " + $base); false) + {spacing:"Medium", separator:true}),
-                  (row("📌 Status"; $status; true) | .columns[1].items[0].color = $st.c),
-                  row("👤 Raised by"; $who; true)
+                  # status on the left, source -> target branch on the right, same row
+                  {type:"Container", style:$st.s, bleed:true, items:[{type:"ColumnSet", columns:[
+                    {type:"Column", width:"stretch", verticalContentAlignment:"Center", items:[
+                      {type:"TextBlock", text:($st.h + " #" + $num), weight:"Bolder", wrap:true}]},
+                    {type:"Column", width:"auto", verticalContentAlignment:"Center", items:[
+                      {type:"TextBlock", text:($head + " → " + $base), size:"Small", horizontalAlignment:"Right", wrap:true}]}
+                  ]}]},
+                  {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Small"},
+                  {type:"TextBlock", text:$title, size:"Medium", weight:"Bolder", wrap:true, spacing:"None"},
+                  (row("👤 Raised by"; $who; true) + {spacing:"Small", separator:true})
                 ]
                 + (if ($tags|length) == 0 then [] else
                     [row("🔍 Reviewer"; ($tags | map("<at>\(.name)</at>") | join(", ")); false)] end)),
