@@ -27,11 +27,13 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           PR_NUM: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_HEAD: ${{ github.event.pull_request.head.ref }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
           REVIEWERS: ${{ toJSON(github.event.pull_request.requested_reviewers.*.login) }}
           USER_MAP: ${{ vars.TEAMS_USER_MAP || '{}' }}
         run: |
           payload=$(jq -n \
-            --arg project "$PROJECT" --arg title "$PR_TITLE" --arg author "$PR_AUTHOR" --arg url "$PR_URL" --arg num "$PR_NUM" \
+            --arg project "$PROJECT" --arg title "$PR_TITLE" --arg author "$PR_AUTHOR" --arg url "$PR_URL" --arg num "$PR_NUM" --arg head "$PR_HEAD" --arg base "$PR_BASE" \
             --argjson map "$USER_MAP" --argjson rev "$REVIEWERS" --argjson def "$DEFAULT_MENTIONS" '
             # author mentioned too when in the map; reviewers = requested + defaults, mapped only
             ($map[$author] // null) as $me |
@@ -52,7 +54,8 @@ jobs:
                   ]},
                   {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Medium"},
                   {type:"TextBlock", text:$title, size:"ExtraLarge", weight:"Bolder", wrap:true, spacing:"Small"},
-                  (row("👤 Raised by"; $who; true) + {spacing:"Medium", separator:true})
+                  (row("🌿 Branch"; ($head + " → " + $base); false) + {spacing:"Medium", separator:true}),
+                  row("👤 Raised by"; $who; true)
                 ]
                 + (if ($tags|length) == 0 then [] else
                     [row("🔍 Reviewer"; ($tags | map("<at>\(.name)</at>") | join(", ")); false)] end)),
