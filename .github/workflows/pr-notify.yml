@@ -68,7 +68,7 @@ jobs:
                       {type:"TextBlock", text:($head + " → " + $base), size:"Small", horizontalAlignment:"Right", wrap:true}]}
                   ]}]},
                   {type:"TextBlock", text:("📁 " + $project), size:"Small", weight:"Bolder", isSubtle:true, wrap:true, spacing:"Small"},
-                  {type:"TextBlock", text:$title, size:"Medium", weight:"Bolder", wrap:true, spacing:"None"},
+                  {type:"TextBlock", text:$title, size:"Large", weight:"Bolder", wrap:true, spacing:"Default"},
                   (row("👤 Raised by"; $who; true) + {spacing:"Small", separator:true})
                 ]
                 + (if ($tags|length) == 0 then [] else
